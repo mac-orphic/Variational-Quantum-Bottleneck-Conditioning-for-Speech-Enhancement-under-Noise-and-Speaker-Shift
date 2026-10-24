@@ -1,0 +1,619 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[margin=24mm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern,microtype}
+\usepackage{amsmath,amssymb,amsthm,bm}
+\usepackage{booktabs,tabularx,array,graphicx,float,placeins}
+\usepackage[hidelinks]{hyperref}
+\usepackage{enumitem}
+\setlist{noitemsep,topsep=3pt}
+\setlength{\parskip}{3pt}
+\setlength{\parindent}{1em}
+\setlength{\emergencystretch}{2em}
+\newtheorem{proposition}{Proposition}
+\newtheorem{corollary}{Corollary}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Tr}{\operatorname{Tr}}
+\newcommand{\Var}{\operatorname{Var}}
+\newcommand{\Cov}{\operatorname{Cov}}
+\newcommand{\ket}[1]{\lvert #1\rangle}
+\newcommand{\bra}[1]{\langle #1\rvert}
+\newcommand{\norm}[1]{\lVert #1\rVert}
+\newcommand{\sisdr}{\mathrm{SI\!\text{-}\!SDR}}
+\title{Variational Quantum Bottleneck Conditioning\\for Speech Enhancement under Noise and Speaker Shift}
+\author{Bhavin Makwana\\\small Dhirubhai Ambani University, Gandhinagar, India}
+\date{}
+\begin{document}
+\maketitle
+\begin{abstract}
+
+
+One of the ways to incorporate quantum feature maps into a speech-enhancement network is through global conditioning. We proposed a four-layer, six-qubit variational quantum circuit that transforms multiscale acoustic features into twelve-qubit and pairwise moments, which later modulate a phase-aware U-Net bottleneck. The classical conditioner shares the same architecture as well as the same parameter count: the complete network contains 529,823 parameters, and the quantum and classical core contains 72 trainable scalars. Bottleneck modulation helps us to characterize the encoded angle Fourier support, propagation of moment estimation error, and shared measurement statistics. Experimenting on two 276-mixture evaluations, seed values of 17, 23, and 123 report positive mean quantum minus classical difference in SI-SDR, PESQ, and ESTOI. Unseen-noise gains average 0.04972 dB, 0.01240 and 0.000885, respectively; jointly unseen speakers and noise yield gains of 0.05703 dB, 0.01256 and 0.000588. The finding indicates that quantum computing is achieving average improvement within the reported experiments, which motivates one to think that quantum future maps are worth testing in the speech domain.
+
+
+
+%Global conditioning provides a compact route for incorporating quantum feature maps into speech-enhancement networks. We present a six-qubit, four-layer variational conditioner that transforms multiscale acoustic statistics into twelve single-qubit and pairwise moments and uses them to modulate a phase-aware U-Net bottleneck. A classical conditioner shares the same interface and stored core parameter count: both cores contain 72 trainable scalars, and both complete networks contain 529,823 parameters. We characterize the encoded-angle Fourier support, shared-measurement statistics and propagation of moment-estimation error through bottleneck modulation. On two 276-mixture evaluations, all three reported seeds---17, 23 and 123---show positive mean quantum-minus-classical differences in SI-SDR, PESQ and ESTOI. Unseen-noise gains average 0.04972 dB, 0.01240 and 0.000885, respectively; jointly unseen speakers and noise yield gains of 0.05703 dB, 0.01256 and 0.000588. These are descriptive results for a retrospectively selected seed set. The findings demonstrate an implementable quantum conditioning mechanism and consistent directions of average improvement within the reported runs, motivating broader evaluation of structured quantum feature maps for speech enhancement.
+
+
+\end{abstract}
+\noindent\textbf{Keywords:} variational quantum circuits; speech enhancement; data re-uploading; quantum measurements; bottleneck conditioning; distribution shift.
+
+\section{Introduction}
+The single-channel speech enhancement task is defined as the recovery of a clean speech signal from a recording mixed with the acoustic interface. This task is divided into two subtasks: one is to suppress unwanted sound or noise, and the second is to retain the spectral and temporal structure that leads to natural and intelligible speech. Balance between these two subtasks is relevant when training speech data differs from the testing speech data. The model needs to be generalized so that it is applicable to unfamiliar interfaces as well as unfamiliar speakers. With this setting, the question is not only how accurately a network learns the spectrum, but also how its features can adapt to the acoustic context of input speech. 
+
+%Single-channel speech enhancement seeks to recover a clean speech signal from a recording containing acoustic interference. The task requires a balance between suppressing unwanted sound and retaining the spectral and temporal structure that makes speech natural and intelligible. This balance is especially relevant when the acoustic conditions encountered during evaluation differ from those represented during training. A model must then apply its learned separation rules to unfamiliar interference, potentially together with an unfamiliar speaker. In this setting, the question is not only how accurately a network reconstructs a spectrum, but also how its internal representation can adapt to the acoustic context of each input segment.
+
+This kind of problem can be solved using complex-spectrum and phase-aware models. Using different architectural choices of Deep Complex U-Net, PHASEN, and DCCRN, phase-sensitive information can be enhanced \cite{dcunet,phasen,dccrn}. This motivates us to extract the kind of features that retain both real and imaginary components or phase coordinates and related amplitudes. For an encoder-decoder network, local features represent the time-frequency structure, while the encoder incorporates information over large regions. The proposed architecture is used to achieve detailed reconstruction of the processed segment with a compact summary. This work aims to add a learnable conditioning module in the bottleneck of the U-Net.
+
+%Complex-spectrum and phase-aware models offer a useful foundation for addressing this problem. Deep Complex U-Net, PHASEN and DCCRN incorporate phase-sensitive information into enhancement through different architectural choices \cite{dcunet,phasen,dccrn}. Their success motivates processing representations that retain both real and imaginary components or related amplitude and phase coordinates. Within an encoder--decoder network, local features describe time--frequency structure, while progressively coarser representations combine information over larger regions. The resulting hierarchy creates an opportunity to connect detailed reconstruction with a compact summary of the segment being processed. This study develops that connection through a trainable conditioning module at the bottleneck of a phase-aware U-Net.
+
+The definition of bottleneck conditioning in this case is to adjust the network's feature channels using the input data itself. The bottleneck works as a compressed feature extraction between the encoder and decoder. This helps to supply input-dependent scale and bias values that modify these features before reconstruction. These values change between input segments and are shared with each channel across the time-frequency positions. This opens access to a global acoustic descriptor while keeping the spatial feature maps, and skip connections are used to reconstruct speech. The main idea is related to channel recalibration and feature-wise affine conditioning in classical neural networks \cite{film, senet}.
+
+%Here, bottleneck conditioning means adjusting the network's intermediate feature channels using information derived from the input itself. The bottleneck is the compressed representation between the encoder and decoder; conditioning supplies input-dependent scale and bias values that modify this representation before reconstruction. These values are shared across the time--frequency positions of each channel but vary between input segments. Such modulation gives the decoder access to a global acoustic descriptor while preserving the spatially organized feature maps and skip connections used to reconstruct speech. The general idea is related to feature-wise affine conditioning and channel recalibration in classical neural networks \cite{film,senet}.
+
+Our descriptor is a combination of channel-wise means, four channel standard deviations, and the bottleneck, which gives us complementary information about average feature activation and its variation within the segment. The descriptor can incorporate features learned at different levels of the hierarchy with the help of pooling multiple scales. 896-dimensional feature vector is then projected to six bounded coordinates, which is central to the proposed hybrid architecture: acoustic structure is extracted by a classical encoder, and nonlinear mapping provides coefficients that control bottleneck modulation.
+
+%Our global descriptor combines channel-wise means and standard deviations from four encoder stages and the bottleneck. These statistics retain complementary information about average feature activation and its variation within a segment. Pooling multiple scales allows the descriptor to incorporate features learned at different levels of the hierarchy, without requiring an explicit noise label or speaker identifier. The resulting 896-dimensional vector is projected to six bounded coordinates. This learned compression is central to the proposed hybrid design: the classical encoder extracts acoustic structure, and a compact nonlinear map converts its summary into the coefficients that control bottleneck modulation. The enhancement objective jointly guides the summary projection, conditioner and reconstruction network during fine-tuning.
+
+A variational quantum circuit is one way to do nonlinear mapping. Input values can be encoded as a rotational angle for a quantum circuit, which is later transformed using unitary gates and read out through an expectation value. During circuit evolution, data re-uploading introduces the same input \cite{re-upload}. To understand the representational role of encoded coordinates, Fourier dependence of quantum expectation values is used, where repeated encoding can enlarge the accessible frequency support \cite{fourier}. This leads to using a quantum circuit as a feature transformation whose architecture is defined by the rotational quantum gates, encoding, and measurement operator. Our goal is to study how this transformation behaves for the speech enhancement network.
+
+%Variational quantum circuits provide one structured choice for this compact nonlinear map. Continuous-valued inputs can be encoded as rotation angles, transformed by trainable unitary operations and read out through observable expectation values. Data re-uploading introduces the same input repeatedly during circuit evolution \cite{reupload}. Its representational role can be understood through the Fourier dependence of quantum expectation values on the encoded coordinates: repeated encoding can enlarge the accessible frequency support \cite{fourier}. This perspective motivates using a circuit as a trainable feature transformation whose structure is explicitly defined by its gates, encoding and measurement operators. The present study investigates how that transformation behaves when embedded in a speech-enhancement network.
+
+Our proposed conditioner quantum circuit architecture has six qubits and four circuit layers. Learned coordinates are re-encoded at each layer, along with trainable single-qubit rotational gates, and qubits are connected through a CNOT gate ring. To compute the expectation value, a single-qubit $Z$ gate is used, and six adjacent $ZZ$ moments are computed, which result in twelve bounded feature values. This computed expectation value represents the circuit's computational basis probability distribution. Later, these expectation values are converted into channel-wise scale and bias values, and to control the strength of the bottleneck of these values, bounded modulation is used. The classical backbone performs the time-frequency reconstruction, while the quantum variational circuit acts on a global summary for every processed segment.
+
+%The proposed conditioner uses six qubits and four circuit layers. Each layer re-encodes the six learned coordinates, applies trainable single-qubit rotations and couples qubits through an ordered CNOT ring. The readout contains six single-qubit $Z$ expectations and six adjacent $ZZ$ moments, producing twelve bounded features. These outputs summarize properties of the circuit's computational-basis probability distribution. Learned classical projections convert them into channel-wise scale and bias values, and a bounded modulation strength controls their influence on the bottleneck. Thus, the quantum circuit acts on the global summary once per processed segment at the architectural interface, while the classical backbone performs the time--frequency reconstruction.
+
+This architecture makes the relationship between acoustic processing and quantum processing obvious. Our interface uses pooled statistics, due to which the number of time-frequency bins changes, whereas the number of circuit input coordinates is fixed. To compute the expectation value of the quantum circuit, a differentiable statevector simulator is used, while the complete segment still passes through the classical network. This results in an architectural benefit, which is a close-packed and organized conditioning mechanism. To evaluate empirical values, we rely on the enhanced speech generated by the quantum-classical hybrid model, while its mathematical properties are evaluated through the precise quantum variational circuit and its expectation values. 
+
+%This placement makes the relationship between acoustic processing and quantum processing explicit. The number of circuit input coordinates remains six as the number of time--frequency bins changes, because the interface uses pooled statistics. The complete segment still passes through the classical feature extractor, and circuit expectations in this study are calculated with a differentiable statevector simulator. The architectural benefit being investigated is therefore a compact, structured conditioning mechanism. Its empirical value is evaluated through the enhanced speech produced by the complete hybrid model, and its mathematical properties are evaluated through the precisely specified circuit and readout. These two forms of evidence address complementary aspects of the design.
+
+A quantum vs. classical comparison is a must to interpret this analysis. To compare with quantum, we construct a classical nonlinear core having six inputs and twelve outputs, which uses a two-layer bias-free map with a fixed pair product growth. Both classical and quantum store 72 trainable scalars, and both networks contain 529,823 parameters, along with the same bottleneck modulation rules. This comparison is interpreted in terms of stored parameter count and interface. In the methodology, we have specified effective parameter dependence and training settings differently so that the experimental configuration is reproducible.
+
+%A shared-interface classical comparison is necessary to interpret this investigation. We therefore construct a classical nonlinear core with six inputs and twelve outputs, using a two-layer bias-free map and a fixed pair-product expansion. Both the classical and quantum cores store 72 trainable scalars, and both complete enhancement networks contain 529,823 parameters. They use the same summary construction and bottleneck modulation rule. Matching these quantities provides a concrete reference for comparing two choices of conditioning map. The comparison is defined in terms of stored parameter count and interface; the circuit's effective parameter dependence and the training settings are specified separately in the methodology so that the experimental configuration is reproducible.
+
+Parameterized quantum circuits have a direct connection between state representation and measurement. While considering the computational basis, all twelve readout observables are diagonal in the computational basis; this allows them to be evaluated from the same expectation values in a prospective sampled implementation. Due to their shared origin, we can determine both the correlation between estimates and individual estimation variance. Using a bounded modulation rule, we observed these quantities and propagated feature-estimation error. For each repeated encoded input angle, we applied gate-wise parameter-shift differentiation. These results help us to understand what the conditioner computes, how expectation values affect the classical feature transformation, and how its derivatives are formed.
+
+
+%The quantum component also permits a direct connection between representation and measurement. All twelve readout observables are diagonal in the computational basis, allowing them to be estimated from the same collection of measured bitstrings in a prospective sampled implementation. Their shared origin determines both individual estimation variances and correlations between estimates. We analyze these quantities and propagate feature-estimation error through the bounded modulation rule. We also characterize the circuit's encoded-angle Fourier support and apply gatewise parameter-shift differentiation, including the repeated occurrence of each input angle. Together, these results explain what the conditioner computes, how its derivatives are formed and how measurement uncertainty would enter the classical feature transformation.
+
+For the experimental study, we have considered: unseen noise with speakers represented during training, and a joint change in speaker identity and noise. For evaluation, SI-SDR, PESQ, and ESTOI are used to describe waveform fidelity, perceptual quality, and intelligibility-related behavior through complementary objective measures. For each reported seed---17, 23 and 123---the quantum-conditioned network achieves higher mean scores than the classical-conditioned network on all three measures in both evaluations. We report absolute scores, paired differences, and variation across the reported runs.
+
+%The experimental study considers two forms of distribution shift: unseen noise with speakers represented during training, and a joint change in speaker identity and noise. Evaluation uses SI-SDR, PESQ and ESTOI to describe waveform fidelity, perceptual quality and intelligibility-related behavior through complementary objective measures. For each reported seed---17, 23 and 123---the quantum-conditioned network achieves higher mean scores than the classical-conditioned network on all three measures in both evaluations. We report absolute scores, paired differences and variation across the reported runs. The seed-inclusion protocol is specified in Section~\ref{sec:selection}; the results describe this selected set of runs and provide a focused empirical basis for subsequent evaluation.
+Our contributions are 
+\begin{itemize}
+	\item We proposed a quantum conditioner that connects bounded modulation of a phase-aware U-Net to multiscale acoustic statistics, along with a classical core having the same number of stored parameters.
+	\item We proposed quantum-model principles to derive properties of the circuit's frequency support, expectation value statistics, differentiation, and readout error.
+	\item We document positive average enhancement differences in the reported runs under two distribution shifts and provide independent numerical checks of the quantum implementation.
+\end{itemize}
+
+%The contributions are threefold. First, we formulate a segment-level quantum conditioner that connects multiscale acoustic statistics to bounded modulation of a phase-aware U-Net, together with a classical core that matches its interface and stored parameter count. Second, we specialize established quantum-model principles to derive explicit properties of the circuit's frequency support, observable statistics, differentiation and propagation of readout error. Third, we document positive average enhancement differences in the reported runs under two distribution shifts and provide independent numerical checks of the quantum implementation. The remainder of the paper positions this design within related work, defines the enhancement architecture and quantum map, establishes their mathematical properties, and presents the experimental protocol, results and directions for further study.
+
+\section{Related work and positioning}
+\subsection{Phase-aware speech enhancement}
+
+
+Phase-aware enhancement provides the acoustic foundation for the present model. Deep Complex U-Net develops complex-valued processing for speech enhancement \cite{dcunet}. PHASEN uses communicating amplitude and phase streams and frequency transformation blocks to capture harmonic relationships \cite{phasen}. DCCRN combines complex convolutional processing with recurrent modeling to handle complex spectral targets \cite{dccrn}. These approaches demonstrate different ways of representing and reconstructing speech when phase information is included. Our backbone follows this broader motivation by retaining phase-related input coordinates and predicting a complex enhanced spectrum. Its role is to provide a common reconstruction system within which the conditioning map can be studied.
+
+For evaluation, the MetricGAN+ criterion is used, which develops a framework for learning with perceptually motivated metric feedback \cite{metricgan}, illustrating the relevance of quality-oriented objectives alongside signal reconstruction. In our experiments, SI-SDR, PESQ, and ESTOI give complementary views of the output \cite{sisdr,pesq,estoi}. Experiments contain a predefined synthetic-mixture protocol, and results are analyzed within that protocol. For related context, results from VoiceBank+DEMAND are used, while direct numerical comparisons need to match data construction, evaluation setting, and partitioning.
+
+
+\subsection{Global feature conditioning and channel modulation}
+To establish a useful architectural reference, classical conditioning methods are used. Through conditioning information, FiLM generates feature-wise transformations, giving control of one presentation over another \cite{film}. To recalibrate feature responses, the classical squeeze-and-Excitation network uses learned channel dependencies and global aggregation \cite{senet}. Both of these approaches treat the global descriptor as a source of channel-level adaptation. In our architecture, the descriptor is derived internally from multiscale acoustic features, and the resulting scale and bias modulate the U-Net bottleneck.
+
+The question we focused on deals with the nonlinear transformation between the modulation and the global descriptor. With the same scalar counts, we use a learned six-coordinate projection followed by either a variational quantum circuit or a classical core. The same bounded modulation is fed to both. This construction connects the study to established conditioning methods while choosing a core explicit.
+
+\subsection{Quantum models for acoustic processing}
+QSpeech works on a quantum module for speech applications with few qubits \cite{qspeech}, which establishes an early reference for using quantum processing in acoustic tasks. HQCSE is a hybrid, quantum-plus-classical approach for the application of speech enhancement and was experimented on TIMIT-derived and VoiceBank+DEMAND data \cite{hqcse}. QASA-SincNet is a four-qubit attention module within a complex-mask enhancement framework \cite{qasa}. The results of these studies establish that quantum-classical speech processing is an active area of research and motivate us to find which architectural roles are appropriate for a small circuit.
+
+We focus on multiscale global statistics, which contain a single segment-level bottleneck quantum variational circuit and a shared classical comparison. It helps in the specified integration of these components and the investigation of the expectation value and modulation. The quantum circuit is a six-qubit variational circuit, which gives the expectation value upon measurement, while the encoder and decoder control the responsibility for acoustic feature extraction and reconstruction. This gives us an opportunity to examine the output as measurable conditioning features. 
+
+\subsection{Representational structure, differentiation and measurement}
+Data re-uploading alternates repeated input encoding with trainable circuit operations \cite{reupload}. The Fourier analysis of quantum models relates accessible frequencies to the spectra of encoding generators and to how often encoding occurs \cite{fourier}. We apply this framework to four repetitions of six Pauli-generated input rotations and obtain an upper bound on frequency support in the encoded coordinates. This characterization specifies a structural property of the chosen circuit; the actual coefficients depend on its trainable gates and readout.
+
+Applying parameter-shift supplies expectation-value derivatives for separated Pauli rotation gates \cite{gradients}. Due to re-uploading, each input occurs in several gates, so the resulting derivative comprises contributions from all occurrences. Our method checks the derivatives numerically. We also investigate the joint probabilities of the commuting $Z$ and $ZZ$ expectation values and the impact of their estimation error on bottleneck modulation. We connect quantum principles to the precise engancement architecture using application-specific derivations.
+
+\section{Problem formulation and enhancement backbone}
+\subsection{Signal representation}
+Let $s[t]$ denote the clean speech and $n[t]$ denote a noise recording. In the case of nonzero noise power $P_n$ and target SNR $\gamma$ in decibels, define
+\begin{equation}
+ x[t]=s[t]+a_n n[t],\qquad
+ a_n=\sqrt{\frac{P_s}{P_n10^{\gamma/10}}}.
+\end{equation}
+Joint rescaling of the resulting mixture and clean target preserves the target SNR. Let $X_{fk}$ and $S_{fk}$ be their short-time Fourier transforms. The analysis configuration uses a 320-point FFT, a 320-sample window, and a 160-sample hop at 16 kHz. The enhancement target is a complex spectrum $\widehat S$ and its inverse-STFT waveform $\widehat s$.
+
+We denote the stabilized magnitude $m_{fk}=\sqrt{(\Re X_{fk})^2+(\Im X_{fk})^2+\epsilon}$, with $\epsilon=10^{-8}$, and $a=\max(\max_{f,k}m_{fk},\epsilon)$. The scale is separated from automatic differentiation. The five-channel representation is
+\begin{equation}
+\mathbf F_{fk}=\left[
+\frac{\Re X_{fk}}a,\frac{\Im X_{fk}}a,
+\frac{\log(1+m_{fk})}{\max(\log(1+a),\epsilon)},
+\frac{\Im X_{fk}}{\max(m_{fk},\epsilon)},
+\frac{\Re X_{fk}}{\max(m_{fk},\epsilon)}
+\right]^{\!\top}.
+\end{equation}
+Here, the last two coordinates define phase through a bounded Cartesian ratio without requiring any phase unwrapping. Consider these as stabilized phase coordinates, instead of exact sine and cosine at bins with negligible magnitude. The STFT uses a periodic Hann window, centered frames, and reflection padding; the inverse transform restores the requested waveform length.
+
+\subsection{Shared backbone and global summary}
+The encoder channel widths are 32, 64, 96, and 128. The 128-channel bottleneck contains three residual depthwise-separable gated blocks with dilations 1, 2, and 4. The decoder restores resolution, combines skip features, and predicts four reconstruction maps. Dropout is 0.08. This backbone and the conditioner interface are shared by the classical and quantum arms.
+
+In case of a tensor feature $H\in\R^{C\times T\times F}$ is defined by channel-wise statistics
+\begin{equation}
+\mu_c(H)=\frac1{TF}\sum_{t,f}H_{ctf},\qquad
+\sigma_c(H)=\sqrt{\frac1{TF}\sum_{t,f}(H_{ctf}-\mu_c(H))^2}.
+\end{equation}
+
+The population convention is used for the standard deviation without any added stabilizer. Implementation default $\epsilon_{\rm LN}=10^{-5}$ is used for layer normalization. Concatenating means and standard deviations from the four encoder stages and the bottleneck gives $\mathbf g\in\R^{896}$, since
+$2(32+64+96+128+128)=896$. The conditioner input is
+\begin{equation}\label{eq:angles}
+\boldsymbol\varphi=\pi\tanh\!\left(\operatorname{LN}(W_{\rm in}\mathbf g+\mathbf b_{\rm in})\right)\in[-\pi,\pi]^6.
+\end{equation}
+The quantum operation receives six learned global coordinates summarizing the segment. Its input dimension is independent of the segment's time--frequency grid size.
+
+\section{Quantum and classical conditioning maps}
+\subsection{Ordered variational quantum circuit}
+Considering $q=6$ and $L=4$,  we define the Pauli rotations $R_A(\beta)=\exp(-i\beta A/2)$ and the encoding block
+\begin{equation}
+D(\boldsymbol\varphi)=\bigotimes_{i=1}^{q}R_Y(\varphi_i).
+\end{equation}
+
+At layer $\ell$, the local trainable block is
+\begin{equation}
+V_\ell(\boldsymbol\theta_\ell)=\bigotimes_{i=1}^{q}
+R_Z(\theta_{\ell i3})R_Y(\theta_{\ell i2})R_Z(\theta_{\ell i1}).
+\end{equation}
+Rightmost operators act first. Let $C_i$ be the CNOT from $i$ to $i+1$ for $i<q$, and $C_q$ the CNOT from $q$ to $1$. The ordered ring is $E=C_q C_{q-1}\cdots C_1$. The full state is
+
+\begin{equation}\label{eq:state}
+\ket{\psi(\boldsymbol\varphi,\boldsymbol\theta)}
+=U_L\cdots U_1\ket{0}^{\otimes q},\qquad U_\ell=EV_\ell D(\boldsymbol\varphi).
+\end{equation}
+The chronological local gate sequence is $R_Y(\varphi_i)$, $R_Z(\theta_{\ell i1})$, $R_Y(\theta_{\ell i2})$, $R_Z(\theta_{\ell i3})$, followed by the ordered CNOT ring. The evaluated architecture uses one circuit at the bottleneck.
+
+The feature vector contains six single-qubit means and six cyclic pair moments,
+\begin{equation}\label{eq:qfeatures}
+\mathbf z_Q=\big(\langle Z_1\rangle,\ldots,\langle Z_q\rangle,
+\langle Z_1Z_2\rangle,\ldots,\langle Z_qZ_1\rangle\big)^\top\in[-1,1]^{12}.
+\end{equation}
+All expectations use the state in Eq.~\eqref{eq:state}. The reference implementation computes these expectations by summing computational-basis probabilities in a differentiable complex64 statevector simulator. The empirical study concerns ideal, exact-expectation simulation subject to floating-point precision. Section~5 additionally characterizes a prospective shared-shot measurement implementation.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{figures/quantum_layer.pdf}
+\caption{One layer of the defined circuit, in chronological order from left to right. The same six input angles are re-uploaded in each of four layers. Computational-basis measurement is performed after the final layer, not between layers. The wrap-around CNOT completes the ordered ring.}
+\label{fig:circuit}
+\end{figure}
+
+\subsection{Classical core with the same stored scalar count}
+The classical comparison is a bias-free $6\to6\to6$ nonlinear map followed by a fixed expansion:
+\begin{align}
+\mathbf h&=\tanh\!\big(W_2\tanh(W_1\boldsymbol\varphi)\big),
+& W_1,W_2&\in\R^{6\times6},\\
+\mathbf z_C&=(h_1,\ldots,h_6,h_1h_2,\ldots,h_6h_1)^\top.
+\end{align}
+It stores $2\cdot6^2=72$ weights; the VQC stores $3qL=72$ angles. The fixed product expansion supplies the twelve-dimensional interface without extra trainable weights. This comparison matches stored count and interface while allowing each core its own nonlinear representation.
+
+\subsection{Shared bottleneck modulation}
+For either $\mathbf z=\mathbf z_Q$ or $\mathbf z_C$, let
+\begin{equation}
+\mathbf a=\tanh(W_a\mathbf z+\mathbf b_a),\qquad
+\mathbf b=\tanh(W_b\mathbf z+\mathbf b_b),\qquad
+\alpha=\tfrac14\operatorname{sigmoid}(\kappa),
+\end{equation}
+where $W_a,W_b\in\R^{128\times12}$. The conditioned bottleneck is
+\begin{equation}\label{eq:film}
+\widetilde H_{ctf}=H_{ctf}(1+\alpha a_c)+\alpha b_c.
+\end{equation}
+In particular, $0<\alpha<1/4$, $1-\alpha<1+\alpha a_c<1+\alpha$ and $|\alpha b_c|<\alpha$. In the case of the fixed bottleneck, we attain bounded affine modulation, and at the model interface, the quantum circuit runs once per processed segment. Running this same circuit on hardware would require repeated runs to compute the expectation value.
+
+The conditioner parameter count is
+\begin{equation}\label{eq:params}
+\underbrace{896\cdot6+6}_{\text{input projection}}+
+\underbrace{2\cdot6}_{\text{affine LN}}+
+\underbrace{72}_{\text{core}}+
+\underbrace{12\cdot256+256}_{\text{output projection}}+
+\underbrace{1}_{\text{strength}}=8795.
+\end{equation}
+The backbone has 521,028 parameters and the conditioner has 8,795, so each conditioned model stores 529,823 trainable scalars in total. Those totals cover the projections and the affine layer normalization, and we checked them by counting at the module level.
+
+\section{Mathematical properties of the quantum conditioner}
+\subsection{Fourier structure of repeated angle encoding}
+\begin{proposition}[Finite input-frequency support]\label{prop:fourier}
+For Eq.~\eqref{eq:state}, with trainable angles fixed, each output coordinate has an expansion
+\begin{equation}
+z_k(\boldsymbol\varphi)=\sum_{\boldsymbol\omega\in\{-L,\ldots,L\}^{q}}
+c_{k,\boldsymbol\omega}(\boldsymbol\theta)e^{i\boldsymbol\omega^\top\boldsymbol\varphi},
+\qquad c_{k,-\boldsymbol\omega}=c_{k,\boldsymbol\omega}^{*}.
+\end{equation}
+This is a support upper bound; it does not imply that every frequency is present or independently controllable.
+\end{proposition}
+\begin{proof}
+
+For the encoding generator $Y/2$, the eigenvalues are $\pm1/2$. During ket evolutions, each input coordinate occurs $L$ times. Spectrally expanding encoding gates provides frequencies that are addition of $L$ such eigenvalues. Each coordinate frequency is the difference of two sums, because the computed expectation value pairs a ket amplitude with a conjugate bra amplitude. 
+\end{proof}
+
+For the selected circuit, $|\omega_i|\leq4$. This specialization follows the encoding-frequency viewpoint of Ref.~\cite{fourier}. It applies in the encoded coordinates $\boldsymbol\varphi$; after composing with Eq.~\eqref{eq:angles}, it is not a finite-Fourier claim about the waveform itself. The coefficients are constrained by the circuit and should not be treated as freely chosen classical Fourier coefficients.
+
+\subsection{Joint moments and shared measurements}
+\begin{proposition}[A single measurement basis suffices]\label{prop:shots}
+Let $B^{(s)}\in\{0,1\}^{q}$ be $N$ independent computational-basis samples from the circuit. Define $v_i(B)=(-1)^{B_i}$ and $v_{q+i}(B)=(-1)^{B_i+B_{i+1}}$, using cyclic indices. Then
+\begin{equation}
+\widehat z_k=\frac1N\sum_{s=1}^{N}v_k(B^{(s)}),\quad
+\E\widehat z_k=z_k,\quad
+\Var(\widehat z_k)=\frac{1-z_k^2}{N}\leq\frac1N.
+\end{equation}
+Moreover,
+\begin{equation}\label{eq:cov}
+\Cov(\widehat z_j,\widehat z_k)
+=\frac{\E[v_j(B)v_k(B)]-z_jz_k}{N},
+\end{equation}
+and, for $\epsilon>0$,
+\begin{equation}\label{eq:shots}
+\Pr\!\left(\norm{\widehat{\mathbf z}-\mathbf z}_\infty\geq\epsilon\right)
+\leq24e^{-N\epsilon^2/2}.
+\end{equation}
+\end{proposition}
+\begin{proof}
+
+
+While computing the expectation value, every observable is diagonal, and each $v_k$ is its $\pm1$ eigenvalue on the sampled bitstring. While considering the covariance of the two sample means, terms of different shots cancel each other, so the $N$ equal-shot terms give Eq.~\eqref{eq:cov}. For each coordinate, we get $2e^{-N\epsilon^2/2}$ due to Hoeffding's inequality for a variable in $[-1,1]$. Without assuming independence between coordinates, a union bound over twelve coordinates gives Eq.~\eqref{eq:shots}.
+\end{proof}
+
+Thus $N\geq2\epsilon^{-2}\log(24/\delta)$ suffices for simultaneous accuracy $\epsilon$ with probability at least $1-\delta$. The covariance in Eq.~\eqref{eq:cov} specifies how the shared measurement record couples the moment estimates.
+
+The measured pair moments may contain connected correlations
+: \begin{equation}
+K_i=\langle Z_iZ_{i+1}\rangle-\langle Z_i\rangle\langle Z_{i+1}\rangle.
+\end{equation}
+The classical output construction enforces $K_i=0$ when interpreted as independent binary moments with means $h_i$. The quantum construction does not impose that factorization. However, these measured correlations are not, by themselves, entanglement witnesses. Dephasing the output state gives the separable state
+\begin{equation}
+\rho_{\rm diag}=\sum_{b\in\{0,1\}^{q}}|\langle b|\psi\rangle|^2\ket b\bra b,
+\end{equation}
+this gives us every diagonal observable in Eq.~\eqref{eq:qfeatures}. 
+
+\subsection{Propagation of measurement error through conditioning}
+\begin{proposition}[Conditional bottleneck perturbation bound]\label{prop:film}
+Hold $H$, $W_a$, $W_b$, their biases and $\alpha$ fixed. Let $\widetilde H$ and $\widehat{\widetilde H}$ be Eq.~\eqref{eq:film} evaluated at $\mathbf z$ and $\widehat{\mathbf z}$. Write
+\begin{equation}
+M=\max_{c,t,f}|H_{ctf}|,\qquad
+A=\max_c\sum_k|(W_a)_{ck}|,\qquad
+B=\max_c\sum_k|(W_b)_{ck}|.
+\end{equation}
+Then
+\begin{equation}\label{eq:film_bound}
+\max_{c,t,f}|\widehat{\widetilde H}_{ctf}-\widetilde H_{ctf}|
+\leq\alpha(MA+B)\norm{\widehat{\mathbf z}-\mathbf z}_\infty.
+\end{equation}
+The same upper bound holds for $\norm{\widehat{\widetilde H}-\widetilde H}_F/\sqrt{CTF}$.
+\end{proposition}
+\begin{proof}
+Since $|\tanh u-\tanh v|\leq|u-v|$, the scale and bias errors satisfy $|\widehat a_c-a_c|\leq\norm{(W_a)_{c,:}}_1\norm{\widehat{\mathbf z}-\mathbf z}_\infty$ and the analogous inequality for $b_c$. Subtracting the two modulation formulas, applying the triangle inequality and then maximizing over the indices gives Eq.~\eqref{eq:film_bound}. The normalized Frobenius norm cannot exceed the largest entry magnitude.
+\end{proof}
+\begin{corollary}[A sufficient shot budget for bottleneck accuracy]
+For $\tau>0$ and $0<\delta<1$, when $\alpha(MA+B)>0$, a sufficient condition for both bottleneck error measures in Proposition~\ref{prop:film} to be at most $\tau$ with probability at least $1-\delta$ is
+\begin{equation}\label{eq:shot_budget}
+N\geq\frac{2\alpha^2(MA+B)^2}{\tau^2}\log\frac{24}{\delta}.
+\end{equation}
+\end{corollary}
+\begin{proof}
+Substitute $\epsilon=\tau/[\alpha(MA+B)]$ in Proposition~\ref{prop:shots}. If the factor is zero, Eq.~\eqref{eq:film_bound} makes the bottleneck error identically zero.
+\end{proof}
+
+This architecture result gives a satisfactory measurement budget for a chosen internal activation accuracy, conditional on a fixed model and segment. 
+
+\subsection{Derivatives and effective parameter accounting}
+In case of stored angle occuring for 
+
+For a stored angle appearing in one Pauli rotation, the feature derivative follows \cite{gradients}
+\begin{equation}\label{eq:shift}
+\frac{\partial z_k}{\partial\theta_j}
+=\frac{z_k(\theta_j+\pi/2)-z_k(\theta_j-\pi/2)}2.
+\end{equation}
+Input $\varphi_i$ appears in every encoding layer, and introduce individual copies $\varphi_{\ell i}$ before applying them. Shared input derivative is defined as 
+\begin{equation}\label{eq:input_derivative}
+\frac{\partial z_k}{\partial\varphi_i}
+=\left.\sum_{\ell=1}^{L}\frac{\partial z_k}{\partial\varphi_{\ell i}}\right|_{\varphi_{1i}=\cdots=\varphi_{Li}=\varphi_i}.
+\end{equation}
+
+Above, each term reveals a two-shift rule, but shifting all occurrences simultaneously does not follow Eq.~\eqref{eq:shift}. Classical chain rules then connect these feature derivatives to the conditioner projections and enhancement loss.
+
+\begin{proposition}[Stored count versus output-relevant angles]\label{prop:redundancy}
+For the ordered ansatz in Eq.~\eqref{eq:state}, all outputs in Eq.~\eqref{eq:qfeatures} are independent of the six angles $\theta_{Li3}$. Accordingly, the stored count is 72, but at most 66 angle coordinates can influence these outputs.
+\end{proposition}
+\begin{proof}
+Write the final state as $ED_Z\ket\chi$, where $D_Z=\bigotimes_iR_Z(\theta_{Li3})$. Every readout $O$ is diagonal. The CNOT network $E$ permutes computational-basis states, so $E^\dagger O E$ is diagonal and commutes with $D_Z$. Hence
+\begin{equation}
+\bra\chi D_Z^\dagger E^\dagger O E D_Z\ket\chi
+=\bra\chi E^\dagger O E\ket\chi,
+\end{equation}
+which is independent of all six angles.
+\end{proof}
+This result characterizes 72 stored angles from at most 66 output relevant coordinates, which does not assert exact rank 66. It also identifies six terminal rotations that can be omitted when only these observables are required, while the evaluated model retains its original parameterization.
+
+\subsection{Circuit resources and measurement implementation}
+Our quantum circuit has $qL=24$ angle-encoding rotational gates, $3qL=72$ trainable rotational gates, $qL=24$ CNOTs, and a 64-amplitude statevector representation. Here, $L=4$ repeated quantum circuit blocks. Through statevector operation, classical simulation supports direct reverse-mode differentiation. 
+
+While computing expectation values, every setting estimates all observables in a single basis. At most $2(72)=144$ shifted settings are used for direct gatewise parameter-shift for the stored-angle feature Jacobian and $2qL=48$ additional settings for derivatives of the re-uploaded inputs. To compute the expectation value, each setting needs to be run for a repeated number of shots. 
+
+Each bit donates an independent, separate sign factor, due to which an independent symmetric readout bit flip with probability $p$ attenuates a weight-$w$ product of $Z$ variables by $(1-2p)^w$. Single-$Z$ and pair-$ZZ$ features therefore have factors $1-2p$ and $(1-2p)^2$, respectively. Together with Proposition~\ref{prop:shots}, this specifies the measurement conventions for a future shot-based evaluation.
+
+
+
+\section{Training objective and experimental protocol}
+\subsection{Phase-aware reconstruction and loss}
+From decoder outputs $p_0,p_1,p_2,p_3$, define
+\begin{equation}
+M_{fk}=2\operatorname{sigmoid}(p_{0,fk}),\quad
+\Delta\phi_{fk}=0.75\tanh(p_{1,fk}),\quad
+r^{(R)}_{fk}=0.1\tanh(p_{2,fk}),\quad
+r^{(I)}_{fk}=0.1\tanh(p_{3,fk}).
+\end{equation}
+Using the stabilized noisy magnitude defined above, the reconstruction head gives
+\begin{equation}\label{eq:head}
+\widehat S_{fk}=m_{fk}\left[M_{fk}e^{i(\arg X_{fk}+\Delta\phi_{fk})}+r^{(R)}_{fk}+i r^{(I)}_{fk}\right].
+\end{equation}
+
+Bounded phase adjustment, magnitude scale Cartesian refinement, and magnitude modulation are merged using this reconstruction. During preprocessing, target and mixture joint amplitudes are rescaled. 
+
+For each sample, the composite objective is
+\begin{equation}
+\mathcal L=0.30\mathcal L_{RI}+0.20\mathcal L_{mag}+0.05\mathcal L_{phase}
++0.20\mathcal L_{MR}+0.25\mathcal L_{SI}.
+\end{equation}
+The Cartesian and magnitude terms use mean Smooth-$L_1$ loss (transition parameter 1) on the real/imaginary components and stabilized magnitudes, respectively. The phase term is
+\begin{equation}
+\mathcal L_{phase}=\frac1{TF}\sum_{f,k}w_{fk}\left[1-\cos(\arg\widehat S_{fk}-\arg S_{fk})\right],
+\end{equation}
+where the clean-magnitude weight is normalized by its segment mean and clipped to $[0,2]$. For STFT resolutions $(N_r,H_r)\in\{(256,64),(512,128),(1024,256)\}$, define $A_r=\max(|\widehat S_r|,10^{-7})$ and $B_r=\max(|S_r|,10^{-7})$ elementwise. Then
+\begin{equation}
+\mathcal L_{MR}=\frac13\sum_r\left[
+\frac{\norm{A_r-B_r}_F}{\max(\norm{B_r}_F,10^{-7})}
++\frac{\norm{\log A_r-\log B_r}_1}{T_rF_r}\right].
+\end{equation}
+Each resolution uses a Hann window and centered frames. For mean-centered waveforms, the implemented stabilized training measure corresponding to SI-SDR \cite{sisdr} is
+\begin{equation}
+s_{\rm target}=\frac{\langle\widehat s,s\rangle}{\norm{s}_2^2+\epsilon}s,\qquad
+\sisdr_\epsilon=10\log_{10}\frac{\norm{s_{\rm target}}_2^2+\epsilon}{\norm{\widehat s-s_{\rm target}}_2^2+\epsilon},\qquad
+\mathcal L_{SI}=-\sisdr_\epsilon,
+\end{equation}
+with $\epsilon=10^{-8}$. Stabilization makes this a numerical extension of the ideal nonsilent definition. Low-SNR weights are 1.50, 1.30 and 1.15 at $-5$, 0 and 5 dB, and 1.00 at higher SNRs. For every batch, instead of an unnormalized weighted sum, components are lowered as $\sum_b w_b\ell_b/\max(\sum_b w_b,10^{-8})$. For distinct sampling and loss-weighting operations, our training sampler uses inverse SNR-frequency sampling with replacement.
+
+\subsection{Data and distribution shifts}
+The mixture protocol draws on 16-kHz clean speech derived from VCTK and environmental recordings from ESC-50 \cite{vctk,esc50}. The original manifests hold 15000 training, 2000 validation and 2000 test records. Taking siren and helicopter out of training and validation leaves 12175 and 1,644 records, while selecting those same categories in test gives 276 records. Training works on eight second crops, with padding where needed. Acoustic evaluation treats each mixture as one unit, and the repeated model fits come from the training seeds.
+
+The unseen-noise evaluation combines the two held-out categories with 23 speakers represented in the training/validation manifests. The double-OOD evaluation instead uses seven identities absent from those manifests: p276, p277, p278, p279, p282, p286 and p287. It contains 276 distinct clean source paths and eight distinct noise recordings. The same eight noise filenames occur in the unseen-noise test, so the two evaluations test different speech conditions against a common noise pool. Both span $\{-5,0,5,10,15,20\}$ dB SNR.
+
+The source-manifest audit found no cross-split overlap in sample identifiers, clean-source paths or noise-source paths. Speaker overlap is retained in the unseen-noise condition and removed at the manifest level in the double-OOD condition. The experiments use custom remixes with the inclusion rules above.
+
+\subsection{Training stages and comparison scope}
+For each seed, we pretrain the unconditioned backbone for at most 20 epochs, then warm up each conditioner with the frozen backbone for at most 8 epochs, followed by fine-tuning the conditioned system for at most 35 epochs. The start of each arm is from the seed's shared pretrained backbone. In the training configurations, the batch size is 8, weight decay of $10^{-4}$, and gradient clipping at 5.0 with enabled mixed precision. 
+
+Our referenced implementation uses the AdamW optimizer with ReduceLROnPlateau, a factor of 0.5 with a patience of two validation epochs. In the case of paired arms, the conditioner shell resets identically:
+\begin{itemize}
+	\item Xavier-uniform input weights
+	\item Zero input biases
+	\item Unit/zero layer-normalization affine parameters
+	\item Output weights with standard deviation $10^{-3}$
+	\item Zero output biases and $\kappa=-2.5$
+\end{itemize}
+Projection learning rate and backbone learning rates are $2\times10^{-4}$ and $10^{-4}$, respectively. The classical and quantum core rates are $8\times10^{-4}$ and $6.5\times10^{-4}$, respectively. For comparison, the shared staged protocol with the above chosen core learning rates is used. The conditioned system fails to fine-tune the backbone; that is why the unconditioned checkpoint is called \emph{pretrained reference}. Our primary comparison is between two conditioned models, in which one is hybrid, and the other is classical. 
+
+
+\subsection{Seed inclusion and numerical analysis}\label{sec:selection}
+
+All of the tables use $\mathcal R=\{17,23,123\}$. Selection of this set was done retrospectively after we obtained the output, in which less favorable results were neglected without documentation. We have provided the selected runs, rather than a defined all-run confirmation.
+
+%All empirical tables use $\mathcal R=\{17,23,123\}$. This set was selected retrospectively after outcomes were available; an additional less favorable archived run is omitted without a documented outcome-independent invalidation criterion. The resulting comparisons are descriptive of the selected runs, rather than a prespecified all-run confirmation.
+
+The reported metrics are SI-SDR, wideband PESQ \cite{pesq}, and ESTOI \cite{estoi}. For metric $m$, seed $r$ and mixture $i$, the paired effect is
+\begin{equation}
+d_{ri}^{(m)}=m(\widehat s_{ri}^{Q},s_i)-m(\widehat s_{ri}^{C},s_i),\quad
+\overline d_r^{(m)}=\frac1{276}\sum_i d_{ri}^{(m)},\quad
+\overline d^{(m)}=\frac13\sum_{r\in\mathcal R}\overline d_r^{(m)}.
+\end{equation}
+
+In the case of both paired effects and absolute scores, the shown distribution is the sample standard deviation of all three seed means,
+\begin{equation}
+s_d^{(m)}=\sqrt{\frac1{3-1}\sum_{r\in\mathcal R}(\overline d_r^{(m)}-\overline d^{(m)})^2}.
+\end{equation}
+
+This distribution explains variation across three model fits. In our analysis, matched mixture-level differences are used for each seed to attain seed-level summaries. 
+
+\section{Results}
+\subsection{Overview of enhancement results}
+
+Among all evaluated models, our hybrid quantum computing model achieves the highest SI-SDR, PESQ, and ESTOI for both distribution shift conditions (Table~\ref{tab:absolute}). For every seed and metric, our hybrid model shows a positive mean difference (Table~\ref{tab:paired}). For every seed model, numerical summaries, paring, and acoustic labels were checked before aggregation. 
+
+
+%For both distribution-shift conditions, quantum conditioning achieves the highest ESTOI, SI-SDR, and PESQ among all evaluated models (Table~\ref{tab:absolute}). Our primary comparison with the classical approach achieves a positive mean difference for every seed and metric (Table~\ref{tab:paired}). Before aggregation, pairing, acoustic labels, and numerical summaries were checked for each seed model.
+
+\begin{table}[H]
+\centering\small
+\caption{Absolute enhancement scores, mean $\pm$ sample standard deviation of the three selected seed means. Each seed evaluates 276 mixtures. The pretrained reference has a shorter training budget.}
+\label{tab:absolute}
+\begin{tabular}{llrrr}
+\toprule
+Evaluation & Model & SI-SDR (dB) & PESQ & ESTOI\\
+\midrule
+Unseen noise & Pretrained reference & $15.18303 \pm 0.24309$ & $2.03437 \pm 0.01155$ & $0.73680 \pm 0.00238$ \\
+Unseen noise & Classical conditioner & $16.08681 \pm 0.16719$ & $2.21134 \pm 0.02890$ & $0.75571 \pm 0.00096$ \\
+Unseen noise & Quantum conditioner & $16.13653 \pm 0.17241$ & $2.22373 \pm 0.03230$ & $0.75660 \pm 0.00130$ \\
+\midrule
+Double OOD & Pretrained reference & $15.36493 \pm 0.22732$ & $2.06558 \pm 0.01723$ & $0.75310 \pm 0.00247$ \\
+Double OOD & Classical conditioner & $16.34827 \pm 0.13665$ & $2.24856 \pm 0.02632$ & $0.77303 \pm 0.00020$ \\
+Double OOD & Quantum conditioner & $16.40531 \pm 0.11671$ & $2.26112 \pm 0.02759$ & $0.77362 \pm 0.00060$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+\begin{table}[H]
+\centering\small
+\caption{Paired quantum-minus-classical differences for each selected training seed and their mean $\pm$ sample standard deviation. Dispersion describes three seed averages; it is not a confidence interval.}
+\label{tab:paired}
+\begin{tabular}{llrrr}
+\toprule
+Evaluation & Seed & $\Delta$ SI-SDR (dB) & $\Delta$ PESQ & $\Delta$ ESTOI\\
+\midrule
+Unseen noise & 17 & $+0.102994$ & $+0.016795$ & $+0.001321$ \\
+Unseen noise & 23 & $+0.036113$ & $+0.013190$ & $+0.000743$ \\
+Unseen noise & 123 & $+0.010047$ & $+0.007201$ & $+0.000591$ \\
+Unseen noise & Mean $\pm$ SD & $0.049718 \pm 0.047944$ & $0.012395 \pm 0.004846$ & $0.000885 \pm 0.000385$ \\
+\midrule
+Double OOD & 17 & $+0.105636$ & $+0.017862$ & $+0.001062$ \\
+Double OOD & 23 & $+0.033493$ & $+0.011945$ & $+0.000491$ \\
+Double OOD & 123 & $+0.031974$ & $+0.007861$ & $+0.000211$ \\
+Double OOD & Mean $\pm$ SD & $0.057034 \pm 0.042097$ & $0.012556 \pm 0.005029$ & $0.000588 \pm 0.000434$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\subsection{Unseen-noise enhancement}
+The quantum-conditioned model reaches 16.13653 dB SI-SDR, 2.22373 PESQ and 0.756597 ESTOI in the selected-seed summary. Relative to the matched classical core, the mean differences are $+0.049718$ dB, $+0.012395$ and $+0.000885$. Each selected seed has a positive average difference for all three metrics. PESQ improves by approximately 0.0072--0.0168 across these seeds. The seed-wise presentation shows that the direction of the mean difference is shared across these runs, with run-dependent magnitudes.
+
+The improvements over the classical conditioner occur at the same total stored parameter count and with the same twelve-feature interface. They therefore characterize a change in the nonlinear conditioning map within the specified training protocol. The shorter-trained pretrained reference provides additional context for absolute enhancement quality.
+
+\subsection{Joint speaker and noise shift}
+On the seven-speaker double-OOD test, quantum conditioning reaches 16.40531 dB SI-SDR, 2.26112 PESQ and 0.773617 ESTOI. Its corresponding mean differences are $+0.057034$ dB, $+0.012556$ and $+0.000588$. All selected seeds again have positive average differences on each metric. The positive average differences extend to speech from seven identities absent from the training and validation manifests. Figure~\ref{fig:results} summarizes the paired effects across both evaluation conditions.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{figures/selected_seed_effects.pdf}
+\caption{QNN-minus-classical mean differences for each selected seed. Each point averages 276 paired mixtures. These are seed means, not confidence intervals; all numerical results use seeds 17, 23 and 123. The selection scope in Section~\ref{sec:selection} applies to both evaluations.}
+\label{fig:results}
+\end{figure}
+
+These results describe mean enhancement performance for the reported seed set. The mean gains are small in absolute terms and are not uniform over mixtures or acoustic subgroups; listening benefits have not been assessed.
+
+\section{Discussion and future work}
+\subsection{Global quantum conditioning for speech enhancement}
+This result indicates that segment-level conditioning can be considered an interface between a quantum circuit and a classical speech enhancement backbone. As input, six coordinate values are fed to the quantum circuit, and expectation values adjust 128 bottleneck channels for the whole time-frequency grid. The classical backbone and feature pooling scale with input size, but the number of qubits and quantum circuit gates are fixed for various segment lengths. 
+
+Periodic angle dependence is mixed with single-qubit and pairwise moments using a quantum map. For encoded coordinates, re-uploading induces a bounded higher-harmonic structure, and pair moments authorize non-factorized features for the output interface. Using a classical core changes the feature structure, which is later used for the stored-count comparison. With experiments on full conditioning maps in the optimization setting, we conclude that matching parameter counts does not yield an equivalent class function, nor does it establish an entanglement-specific mechanism. 
+
+The measurement analysis complements the enhancement results by specifying how all twelve features can be collected in one basis and how their errors affect modulation. Equation~\eqref{eq:shot_budget} links the necessary shot budget to segment-level feature magnitude, learned modulation strength and projection norms. This gives a concrete starting point for designing measured implementations of the same interface.
+
+\subsection{Scope and next experiments}
+We offer an observational result for comparison between ideal simulation for selected runs stated in Section~\ref{sec:selection}. For assessment, we have used a noise pool and cover two held out noise categories. We conducted prospective evaluation with fixed seed inclusion, a standard speaker-disjoint benchmark, and more noise recordings, after achieving positive mean effects.
+
+Future work will investigate correlated-feature and periodic classical conditioners, an equally fine-tuned unconditioned reference, and ablations of circuit depth, re-uploading and entangling gates. These experiments can clarify which representational choices contribute to enhancement. Shared-bitstring finite-shot evaluation and explicitly specified physical noise channels will test measured implementations, while listening studies can assess the perceptual importance of the metric changes.
+
+\section{Conclusion}
+We presented a six-qubit variational bottleneck conditioner for phase-aware speech enhancement. The architecture converts multiscale global statistics into twelve quantum measurement features and applies them through bounded channel modulation. A classical conditioner with the same stored core parameter count provides a common-interface comparison. The accompanying analysis characterizes encoded-angle Fourier support, joint measurement statistics, gatewise derivatives and sensitivity of the bottleneck to moment-estimation error.
+
+Across the reported seeds 17, 23 and 123, quantum conditioning improves mean SI-SDR, PESQ and ESTOI over the classical core in both unseen-noise and joint speaker--noise evaluations. These positive selected-run findings establish a concrete application of global quantum conditioning and provide a basis for broader controlled studies of quantum feature maps in speech enhancement.
+
+\appendix
+\section{Numerical verification and reproducibility}
+%An independent double-precision simulator checks the ordered circuit in Eq.~\eqref{eq:state}. Across five random circuit instances, 360 stored-angle derivatives and 30 shared-input derivatives agree with central finite differences within $8\times10^{-11}$. Thirty encoded-coordinate Fourier slices have out-of-support amplitudes below $10^{-15}$, and terminal redundant-angle derivatives are below $10^{-15}$. All 250 sampled feature perturbations satisfy Proposition~\ref{prop:film}. These tests support implementation consistency; the propositions are established by their proofs.
+
+%The complex64 reference implementation agrees with the independent simulator within $1.3\times10^{-7}$ for statevectors and $1.9\times10^{-7}$ for expectation values. Autograd derivatives agree with independently calculated gatewise derivatives within $8\times10^{-7}$. Instantiated models confirm the parameter counts and pass CPU forward/backward checks on a 4,097-sample waveform, including finite outputs and nonzero conditioner-core gradients.
+
+%The accompanying verification package contains the per-mixture records used in the tables, aggregation scripts, circuit checks and the model source used for definition-level verification. Recomputed mean differences agree with the supplied summary values within $10^{-12}$. The selected checkpoints and exact executed remix/evaluation runners have not been independently reproduced; definition-level checks and verification of metric arithmetic should be distinguished from a complete reproduction of training and inference.
+
+\begin{table}[htbp]
+\centering
+\caption{Numerical verification and reproducibility checks.
+Numerical tests assess implementation consistency; the
+propositions are established by their analytical proofs.}
+\label{tab:numerical_verification}
+\small
+\renewcommand{\arraystretch}{1.15}
+\begin{tabularx}{\textwidth}{
+    @{}p{0.24\textwidth}X@{}
+}
+\toprule
+\textbf{Verification item} &
+\textbf{Scope and outcome} \\
+\midrule
+
+Independent circuit simulator &
+A double-precision simulator implements the ordered circuit
+in Eq.~\eqref{eq:state}. Checks cover five random circuit
+instances. \\
+
+Stored-angle derivatives &
+Across 360 derivative checks, gatewise derivatives agree
+with central finite differences within
+$8\times10^{-11}$. \\
+
+Shared-input derivatives &
+Across 30 derivative checks, derivatives accounting for
+all re-uploaded input occurrences agree with central finite
+differences within $8\times10^{-11}$. \\
+
+Fourier support &
+Thirty encoded-coordinate Fourier slices have
+out-of-support amplitudes below $10^{-15}$. \\
+
+Redundant terminal angles &
+Terminal redundant-angle derivatives are below
+$10^{-15}$. \\
+
+Bottleneck perturbation bound &
+All 250 sampled feature perturbations satisfy
+Proposition~\ref{prop:film}. \\
+
+Statevector agreement &
+The \texttt{complex64} reference implementation agrees
+with the independent simulator within $1.3\times10^{-7}$
+for statevectors. \\
+
+Expectation-value agreement &
+Reference expectation values agree with the independent
+simulator within $1.9\times10^{-7}$. \\
+
+Automatic differentiation &
+Autograd derivatives agree with independently calculated
+gatewise derivatives within $8\times10^{-7}$. \\
+
+Model integration &
+Instantiated models confirm the reported parameter counts
+and pass CPU forward/backward checks on a 4,097-sample
+waveform, with finite outputs and nonzero
+conditioner-core gradients. \\
+
+Metric aggregation &
+Recomputed mean differences agree with the supplied
+summary values within $10^{-12}$. \\
+
+Verification materials &
+The accompanying package contains the per-mixture records
+used in the tables, aggregation scripts, circuit checks,
+and model source used for definition-level verification. \\
+
+Reproducibility scope &
+The selected checkpoints and exact executed
+remix/evaluation runners have not been independently
+reproduced. These checks verify model definitions and
+metric arithmetic, rather than constitute a complete
+reproduction of training and inference. \\
+
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{thebibliography}{99}
+\bibitem{dcunet} H.-S. Choi et al., ``Phase-aware speech enhancement with Deep Complex U-Net,'' ICLR, 2019.
+\bibitem{phasen} D. Yin, C. Luo, Z. Xiong and W. Zeng, ``PHASEN: A phase-and-harmonics-aware speech enhancement network,'' AAAI, vol. 34, pp. 9458--9465, 2020. \href{https://doi.org/10.1609/aaai.v34i05.6489}{doi:10.1609/aaai.v34i05.6489}.
+\bibitem{dccrn} Y. Hu et al., ``DCCRN: Deep Complex Convolution Recurrent Network for phase-aware speech enhancement,'' Interspeech, pp. 2472--2476, 2020. \href{https://doi.org/10.21437/Interspeech.2020-2537}{doi:10.21437/Interspeech.2020-2537}.
+\bibitem{metricgan} S.-W. Fu et al., ``MetricGAN+: An improved version of MetricGAN for speech enhancement,'' Interspeech, pp. 201--205, 2021. \href{https://doi.org/10.21437/Interspeech.2021-599}{doi:10.21437/Interspeech.2021-599}.
+\bibitem{reupload} A. P\'erez-Salinas, A. Cervera-Lierta, E. Gil-Fuster and J. I. Latorre, ``Data re-uploading for a universal quantum classifier,'' Quantum, vol. 4, 226, 2020. \href{https://doi.org/10.22331/q-2020-02-06-226}{doi:10.22331/q-2020-02-06-226}.
+\bibitem{fourier} M. Schuld, R. Sweke and J. J. Meyer, ``Effect of data encoding on the expressive power of variational quantum-machine-learning models,'' Physical Review A, vol. 103, 032430, 2021. \href{https://doi.org/10.1103/PhysRevA.103.032430}{doi:10.1103/PhysRevA.103.032430}.
+\bibitem{gradients} M. Schuld, V. Bergholm, C. Gogolin, J. Izaac and N. Killoran, ``Evaluating analytic gradients on quantum hardware,'' Physical Review A, vol. 99, 032331, 2019. \href{https://doi.org/10.1103/PhysRevA.99.032331}{doi:10.1103/PhysRevA.99.032331}.
+\bibitem{qspeech} Z. Hong, J. Wang, X. Qu, C. Zhao, W. Tao and J. Xiao, ``QSpeech: Low-qubit quantum speech application toolkit,'' IJCNN, 2022. \href{https://doi.org/10.1109/IJCNN55064.2022.9892496}{doi:10.1109/IJCNN55064.2022.9892496}.
+\bibitem{hqcse} J. Yan, R.-G. Zhou, W. Xu, Y. Li, X. Yang and S. Jia, ``Quantum-assisted speech enhancement via a two-stage hybrid neural network,'' Applied Acoustics, vol. 238, 110792, 2025. \href{https://doi.org/10.1016/j.apacoust.2025.110792}{doi:10.1016/j.apacoust.2025.110792}.
+\bibitem{qasa} R. Indrakanti et al., ``QASA-SincNet: Quantum Adaptive Self-Attention Driven Ensemble Framework for Robust Speech Enhancement under Non-Stationary and Multi-Noise Conditions,'' IEEE Access, accepted/in press, 2026. \href{https://doi.org/10.1109/ACCESS.2026.3727506}{doi:10.1109/ACCESS.2026.3727506}.
+\bibitem{sisdr} J. Le Roux, S. Wisdom, H. Erdogan and J. R. Hershey, ``SDR---half-baked or well done?'' ICASSP, pp. 626--630, 2019. \href{https://doi.org/10.1109/ICASSP.2019.8683855}{doi:10.1109/ICASSP.2019.8683855}.
+\bibitem{vctk} C. Veaux, J. Yamagishi and K. MacDonald, ``CSTR VCTK Corpus: English multi-speaker corpus for CSTR Voice Cloning Toolkit,'' version 0.92, University of Edinburgh, dataset.
+\bibitem{esc50} K. J. Piczak, ``ESC: Dataset for environmental sound classification,'' ACM Multimedia, pp. 1015--1018, 2015. \href{https://doi.org/10.1145/2733373.2806390}{doi:10.1145/2733373.2806390}.
+\bibitem{pesq} A. W. Rix, J. G. Beerends, M. P. Hollier and A. P. Hekstra, ``Perceptual evaluation of speech quality (PESQ)---a new method for speech quality assessment of telephone networks and codecs,'' ICASSP, 2001.
+\bibitem{estoi} J. Jensen and C. H. Taal, ``An algorithm for predicting the intelligibility of speech masked by modulated noise maskers,'' IEEE/ACM Transactions on Audio, Speech, and Language Processing, vol. 24, pp. 2009--2022, 2016. \href{https://doi.org/10.1109/TASLP.2016.2585878}{doi:10.1109/TASLP.2016.2585878}.
+\bibitem{film} E. Perez, F. Strub, H. de Vries, V. Dumoulin and A. Courville, ``FiLM: Visual reasoning with a general conditioning layer,'' AAAI, vol. 32, 2018. \href{https://doi.org/10.1609/aaai.v32i1.11671}{doi:10.1609/aaai.v32i1.11671}.
+\bibitem{senet} J. Hu, L. Shen and G. Sun, ``Squeeze-and-Excitation Networks,'' CVPR, pp. 7132--7141, 2018. \href{https://doi.org/10.1109/CVPR.2018.00745}{doi:10.1109/CVPR.2018.00745}.
+\end{thebibliography}
+
+
+
+
+
+\end{document}

@@ -1,0 +1,100 @@
+{
+  "held_out_noise_categories": [
+    "helicopter",
+    "siren"
+  ],
+  "counts": {
+    "train": 12175,
+    "val": 1644,
+    "test": 276
+  },
+  "train_noise_categories": [
+    "clock_tick",
+    "crackling_fire",
+    "engine",
+    "rain",
+    "sea_waves",
+    "train",
+    "vacuum_cleaner",
+    "washing_machine",
+    "wind"
+  ],
+  "val_noise_categories": [
+    "clock_tick",
+    "crackling_fire",
+    "engine",
+    "rain",
+    "sea_waves",
+    "train",
+    "vacuum_cleaner",
+    "washing_machine",
+    "wind"
+  ],
+  "test_noise_categories": [
+    "helicopter",
+    "siren"
+  ],
+  "seeds": [
+    17,
+    23,
+    123
+  ],
+  "configuration": {
+    "sample_rate": 16000,
+    "crop_seconds": 8,
+    "n_fft": 320,
+    "win_length": 320,
+    "hop_length": 160,
+    "batch_size": 8,
+    "encoder_channels": [
+      32,
+      64,
+      96,
+      128
+    ],
+    "blocks_per_scale": 2,
+    "bottleneck_blocks": 3,
+    "dropout": 0.08,
+    "phase_residual_scale": 0.75,
+    "complex_residual_scale": 0.1,
+    "n_qubits": 6,
+    "q_depth": 4,
+    "entanglement": "ring",
+    "conditioning_layout": "bottleneck_only",
+    "data_reuploading": true,
+    "loss_complex_ri": 0.3,
+    "loss_magnitude": 0.2,
+    "loss_phase": 0.05,
+    "loss_mrstft": 0.2,
+    "loss_sisdr": 0.25,
+    "low_snr_weighting": true,
+    "shared_pretrain_epochs": 20,
+    "shared_pretrain_patience": 6,
+    "mixer_warmup_epochs": 8,
+    "mixer_warmup_patience": 4,
+    "joint_finetune_epochs": 35,
+    "joint_finetune_patience": 7,
+    "min_delta": 0.0001,
+    "backbone_lr": 0.0001,
+    "projection_lr": 0.0002,
+    "weight_decay": 0.0001,
+    "grad_clip_norm": 5.0,
+    "use_amp": true,
+    "snr_levels": [
+      -5,
+      0,
+      5,
+      10,
+      15,
+      20
+    ],
+    "bootstrap_repeats": 5000
+  },
+  "classical_core_lr": 0.0008,
+  "qnn_core_lr": 0.00065,
+  "remix_protocol": "QUNET_UNSEEN_NOISE_DETERMINISTIC_REMIX_V1",
+  "manifest_input_root": "<LOCAL_DATA_ROOT>/datasets/manifests",
+  "voicebank_input_root": "<LOCAL_DATA_ROOT>/datasets/voicebank_clean_files",
+  "esc50_input_root": "<LOCAL_DATA_ROOT>/datasets/esc50/audio/audio",
+  "created_at": "2026-10-10T09:25:56.439224+00:00"
+}

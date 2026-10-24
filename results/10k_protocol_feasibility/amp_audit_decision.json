@@ -1,0 +1,9 @@
+{
+  "critical_nonfinite_failures": 0,
+  "optimizer_steps_skipped_amp": 90,
+  "amp_scale_drop_events": 90,
+  "true_nonfinite_gradient_steps": 90,
+  "float32_norm_only_overflow_steps": 0,
+  "training_numerically_valid": false,
+  "interpretation": "FAIL: real AMP overflow or non-finite numerical state detected; do not access the locked test with this run."
+}

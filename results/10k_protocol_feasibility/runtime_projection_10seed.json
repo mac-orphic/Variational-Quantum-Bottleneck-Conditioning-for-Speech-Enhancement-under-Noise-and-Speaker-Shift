@@ -1,0 +1,10 @@
+{
+  "updated_at": "2026-09-10T13:53:15.576713+00:00",
+  "measured_complete_seeds": 3,
+  "target_seed_count": 10,
+  "mean_complete_seed_seconds": 6608.086005969206,
+  "mean_complete_seed_hours": 1.8355794461025572,
+  "projected_target_total_hours_single_gpu": 18.35579446102557,
+  "projected_additional_hours_after_completed_seeds": 12.8490561227179,
+  "note": "Projection uses only clean, full arm timings. Early stopping and I/O can vary by seed. A resumed/already-complete arm is excluded from timing estimates."
+}

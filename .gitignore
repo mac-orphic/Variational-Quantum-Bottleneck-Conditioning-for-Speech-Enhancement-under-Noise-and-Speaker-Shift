@@ -1,0 +1,17 @@
+# Keep raw archives, data, audio, checkpoints and local runtime outputs out of public Git history.
+/private_inputs/
+/data/
+/datasets/
+/audio/
+/checkpoints/
+*.pt
+*.pth
+*.ckpt
+*.wav
+*.flac
+*.mp3
+.ipynb_checkpoints/
+__pycache__/
+*.py[cod]
+.DS_Store
+.env
