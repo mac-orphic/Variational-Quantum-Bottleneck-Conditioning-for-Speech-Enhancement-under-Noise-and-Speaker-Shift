@@ -1,0 +1,206 @@
+{
+  "frozen_at": "2026-09-10T05:49:45.928119+00:00",
+  "selection_source": "predeclared_10k_protocol_before_new_locked_test",
+  "candidate_id": "q6_d4_ring_bottleneck_only",
+  "classical_selected_lr": 0.0008,
+  "qnn_selected_lr": 0.00065,
+  "dataset_examples_total": 10000,
+  "split_counts": {
+    "train": 7000,
+    "val": 1000,
+    "test": 2000
+  },
+  "subset_seed": 20260910,
+  "primary_metric": "delta_si_sdr",
+  "secondary_metrics": [
+    "delta_pesq",
+    "delta_estoi"
+  ],
+  "statistical_tests": {
+    "paired_test": "Wilcoxon signed-rank",
+    "alternative": "QNN > classical",
+    "multiple_testing": "Holm correction",
+    "confidence_interval": "paired bootstrap mean difference",
+    "bootstrap_repeats": 2000
+  },
+  "checkpoint_selection": "minimum validation_total; locked test never used for checkpoint selection",
+  "architecture": {
+    "backbone": "complex-spectral U-Net",
+    "qubits": 6,
+    "depth": 4,
+    "entanglement": "ring",
+    "data_reuploading": true,
+    "conditioning_location": "bottleneck_only",
+    "classical_control": "parameter-matched 6->6->6 bias-free MLP core"
+  },
+  "quantum_ablations": {
+    "status": "predeclared_before_new_locked_test",
+    "seeds": [
+      17,
+      42,
+      123
+    ],
+    "plan": [
+      {
+        "name": "qnn_depth2_ring",
+        "question": "Does a shallower variational circuit retain the benefit?",
+        "q_depth": 2,
+        "entanglement": "ring",
+        "data_reuploading": true
+      },
+      {
+        "name": "qnn_depth4_no_entanglement",
+        "question": "Does the entangling structure contribute beyond local quantum rotations?",
+        "q_depth": 4,
+        "entanglement": "none",
+        "data_reuploading": true
+      }
+    ],
+    "feasibility_run_executes_ablations": false
+  },
+  "training": {
+    "final_seeds": [
+      17,
+      42,
+      123,
+      7,
+      21,
+      84,
+      101,
+      202,
+      303,
+      404
+    ],
+    "feasibility_seeds": [
+      17,
+      42,
+      123
+    ],
+    "train_crop_seconds": 4,
+    "batch_size": 16,
+    "shared_pretrain_epochs": 20,
+    "conditioner_warmup_epochs": 8,
+    "joint_finetune_epochs": 35,
+    "backbone_lr": 0.0001,
+    "projection_lr": 0.0002,
+    "classical_core_lr": 0.0008,
+    "qnn_core_lr": 0.00065,
+    "weight_decay": 0.0001,
+    "gradient_clip_norm": 5.0,
+    "amp_dtype": "torch.float16",
+    "strict_cuda_determinism": false
+  },
+  "amp_audit": {
+    "gradient_measurement": "after scaler.unscale_(optimizer)",
+    "clip_order": "after unscale and preclip logging",
+    "pre_and_post_clip_norms": [
+      "total",
+      "backbone",
+      "qnn_core"
+    ],
+    "internal_activation_sampling_every_batches": 25,
+    "weight_finiteness": "checked each epoch",
+    "amp_scale_and_skipped_steps": "recorded each epoch"
+  },
+  "config": {
+    "sample_rate": 16000,
+    "crop_seconds": 4,
+    "n_fft": 320,
+    "win_length": 320,
+    "hop_length": 160,
+    "dataset_root": "<LOCAL_PROJECT_ROOT>/my_speech_enhancement_dataset_v3",
+    "run_root": "<LOCAL_PROJECT_ROOT>/runs/qunet_10k_amp_audited_fast_10seed_ready_v2",
+    "batch_size": 16,
+    "num_workers": 2,
+    "pin_memory": true,
+    "audio_audit_workers": 8,
+    "full_audio_header_audit": true,
+    "encoder_channels": [
+      32,
+      64,
+      96,
+      128
+    ],
+    "blocks_per_scale": 2,
+    "bottleneck_blocks": 3,
+    "dropout": 0.08,
+    "phase_residual_scale": 0.75,
+    "complex_residual_scale": 0.1,
+    "min_parameters": 500000,
+    "max_parameters": 800000,
+    "variant": "qnn",
+    "n_qubits": 6,
+    "q_depth": 4,
+    "entanglement": "ring",
+    "conditioning_layout": "bottleneck_only",
+    "data_reuploading": true,
+    "loss_complex_ri": 0.3,
+    "loss_magnitude": 0.2,
+    "loss_phase": 0.05,
+    "loss_mrstft": 0.2,
+    "loss_sisdr": 0.25,
+    "low_snr_weighting": true,
+    "shared_pretrain_epochs": 20,
+    "shared_pretrain_patience": 6,
+    "mixer_warmup_epochs": 8,
+    "mixer_warmup_patience": 4,
+    "joint_finetune_epochs": 35,
+    "joint_finetune_patience": 7,
+    "min_delta": 0.0001,
+    "backbone_lr": 0.0001,
+    "projection_lr": 0.0002,
+    "core_lr": 0.00065,
+    "weight_decay": 0.0001,
+    "grad_clip_norm": 5.0,
+    "use_amp": true,
+    "checkpoint_every_steps": 1000,
+    "evaluation_save_interval": 100,
+    "seeds": [
+      17,
+      42,
+      123,
+      7,
+      21,
+      84,
+      101,
+      202,
+      303,
+      404
+    ],
+    "feasibility_seeds": [
+      17,
+      42,
+      123
+    ],
+    "screen_seed": 17,
+    "screen_confirmation_seeds": [
+      17,
+      42
+    ],
+    "screen_warmup_epochs": 4,
+    "screen_joint_epochs": 10,
+    "screening_validation_per_snr": 40,
+    "snr_levels": [
+      -5,
+      0,
+      5,
+      10,
+      15,
+      20
+    ],
+    "latency_rtf_limit": 1.0,
+    "bootstrap_repeats": 2000,
+    "strict_determinism": false,
+    "reduced_data_fractions": [
+      0.1,
+      0.25,
+      0.5,
+      1.0
+    ],
+    "held_out_noises": [
+      "siren",
+      "helicopter"
+    ],
+    "external_manifest": null
+  }
+}

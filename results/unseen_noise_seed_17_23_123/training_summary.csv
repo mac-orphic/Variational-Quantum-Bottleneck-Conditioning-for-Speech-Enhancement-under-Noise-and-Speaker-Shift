@@ -1,0 +1,10 @@
+seed,variant,checkpoint
+17,baseline,<LOCAL_DATA_ROOT>/runs/qunet_unseen_noise_local_v2/seed_17/shared_pretrain/baseline/best.pt
+17,classical,<LOCAL_DATA_ROOT>/runs/qunet_unseen_noise_local_v2/seed_17/joint_finetune/classical/best.pt
+17,qnn,<LOCAL_DATA_ROOT>/runs/qunet_unseen_noise_local_v2/seed_17/joint_finetune/qnn/best.pt
+23,baseline,<LOCAL_DATA_ROOT>/runs/qunet_unseen_noise_local_v2/seed_23/shared_pretrain/baseline/best.pt
+23,classical,<LOCAL_DATA_ROOT>/runs/qunet_unseen_noise_local_v2/seed_23/joint_finetune/classical/best.pt
+23,qnn,<LOCAL_DATA_ROOT>/runs/qunet_unseen_noise_local_v2/seed_23/joint_finetune/qnn/best.pt
+123,baseline,<LOCAL_DATA_ROOT>/runs/qunet_unseen_noise_local_v2/seed_123/shared_pretrain/baseline/best.pt
+123,classical,<LOCAL_DATA_ROOT>/runs/qunet_unseen_noise_local_v2/seed_123/joint_finetune/classical/best.pt
+123,qnn,<LOCAL_DATA_ROOT>/runs/qunet_unseen_noise_local_v2/seed_123/joint_finetune/qnn/best.pt
